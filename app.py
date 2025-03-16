@@ -1,69 +1,49 @@
-import asyncio
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 from ultralytics import YOLO
 import cv2
-import numpy as np
+import tempfile
+import os
 
 # Load YOLOv8 model
 model = YOLO("yolov8n.pt")
 
-# Ensure an event loop is created
-if not asyncio.get_event_loop().is_running():
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
 # 🎨 Streamlit Page Config
 st.set_page_config(
-    page_title="AI Object Detection",
-    page_icon="📸",
+    page_title="AI Object Detection from Video",
+    page_icon="📹",
     layout="wide"
 )
 
-# Custom CSS for background and styling
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background: url("https://images.unsplash.com/photo-1557683316-973673baf926");
-        background-size: cover;
-        background-position: center;
-    }
-    .centered {
-        text-align: center;
-        font-size: 42px;
-        font-weight: bold;
-        color: #00D4FF;
-        padding: 20px;
-    }
-    .footer {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        text-align: center;
-        padding: 10px;
-        font-size: 16px;
-        background: #222;
-        color: #fff;
-        border-top: 2px solid #444;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("<h1 style='text-align: center; color: #00D4FF;'>🚀 AI Video Object Detection</h1>", unsafe_allow_html=True)
 
-# UI Elements
-st.markdown("<h1 class='centered'>🚀 AI Object Detection</h1>", unsafe_allow_html=True)
-st.markdown(
-    "<p style='text-align:center; font-size:20px; color:#A9A9A9;'>An advanced AI-powered system for real-time object detection.</p>",
-    unsafe_allow_html=True
-)
+# File uploader for video
+uploaded_video = st.file_uploader("📤 Upload a video file", type=["mp4", "avi", "mov"])
 
-# Video Processing Class
-class VideoTransformer(VideoTransformerBase):
-    def transform(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        results = model(img)
-        
+if uploaded_video:
+    # Save uploaded video to a temporary file
+    temp_video_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+    with open(temp_video_path, "wb") as f:
+        f.write(uploaded_video.read())
+
+    # Process video
+    cap = cv2.VideoCapture(temp_video_path)
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Output video path
+    output_video_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+
+    st.text("🔄 Processing video... Please wait.")
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        results = model(frame)
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -72,13 +52,22 @@ class VideoTransformer(VideoTransformerBase):
                 label = f"{model.names[cls]} {conf:.2f}"
 
                 if conf > 0.5:
-                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        
-        return img
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-# Streamlit WebRTC Video Stream
-webrtc_streamer(key="webcam", video_transformer_factory=VideoTransformer)
+        out.write(frame)
 
-# 📌 Footer
-st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
+    cap.release()
+    out.release()
+
+    # Display processed video
+    st.text("✅ Processing complete! Download or play the detected video below.")
+    st.video(output_video_path)
+
+    # Provide download link
+    with open(output_video_path, "rb") as file:
+        st.download_button("⬇️ Download Processed Video", file, file_name="detected_video.mp4", mime="video/mp4")
+
+    # Clean up temporary files
+    os.remove(temp_video_path)
+    os.remove(output_video_path)
