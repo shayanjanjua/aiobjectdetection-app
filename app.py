@@ -3,6 +3,7 @@ from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 from ultralytics import YOLO
 import cv2
 import numpy as np
+import av
 
 # Load YOLOv8 model
 model = YOLO("yolov8n.pt")
@@ -70,10 +71,14 @@ class VideoTransformer(VideoTransformerBase):
                     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                     cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
-        return img
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # Streamlit WebRTC Video Stream
-webrtc_streamer(key="webcam", video_transformer_factory=VideoTransformer)
+webrtc_streamer(
+    key="webcam",
+    video_transformer_factory=VideoTransformer,
+    media_stream_constraints={"video": True, "audio": False},
+)
 
 # 📌 Footer
 st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
