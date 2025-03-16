@@ -1,12 +1,16 @@
+import asyncio
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 from ultralytics import YOLO
 import cv2
 import numpy as np
-import av
 
 # Load YOLOv8 model
 model = YOLO("yolov8n.pt")
+
+# Ensure an event loop is created
+if not asyncio.get_event_loop().is_running():
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
 # 🎨 Streamlit Page Config
 st.set_page_config(
@@ -71,14 +75,10 @@ class VideoTransformer(VideoTransformerBase):
                     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                     cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+        return img
 
 # Streamlit WebRTC Video Stream
-webrtc_streamer(
-    key="webcam",
-    video_transformer_factory=VideoTransformer,
-    media_stream_constraints={"video": True, "audio": False},
-)
+webrtc_streamer(key="webcam", video_transformer_factory=VideoTransformer)
 
 # 📌 Footer
 st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
