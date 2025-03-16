@@ -102,7 +102,7 @@ stframe = st.empty()  # Placeholder for video output
 if start_btn:
     cap = cv2.VideoCapture(0)
     recording = True
-    st.success("🎥 Recording started...")
+    st.success("🎥 Getting started...")
 
     while cap.isOpened():
         success, frame = cap.read()
