@@ -1,57 +1,88 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import av
 from ultralytics import YOLO
 import cv2
 import numpy as np
+import time
+import os
 
 # Load YOLOv8 model
 model = YOLO("yolov8n.pt")
 
-# Streamlit Page Config
-st.set_page_config(page_title="AI Object Detection", page_icon="📸", layout="wide")
-
-# Custom CSS
-st.markdown(
-    """
-    <style>
-    .stApp { background: url("https://images.unsplash.com/photo-1557683316-973673baf926");
-        background-size: cover; background-position: center; }
-    .centered { text-align: center; font-size: 42px; font-weight: bold; color: #00D4FF; padding: 20px; }
-    .footer { position: fixed; bottom: 0; width: 100%; text-align: center; padding: 10px;
-        font-size: 16px; background: #222; color: #fff; border-top: 2px solid #444; }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# 🎨 Streamlit Page Config
+st.set_page_config(
+    page_title="AI Object Detection",
+    page_icon="📸",
+    layout="wide"
 )
 
-# UI Elements
-st.markdown("<h1 class='centered'>🚀 AI Object Detection</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; font-size:20px; color:#A9A9A9;'>An advanced AI-powered system for real-time object detection.</p>", unsafe_allow_html=True)
+# UI Title
+st.markdown("<h1 style='text-align:center;'>🚀 AI Object Detection</h1>", unsafe_allow_html=True)
 
-# Define Video Transformer Class for YOLO Processing
-class VideoProcessor(VideoTransformerBase):
+# 📸 Camera selection dropdown (Front or Back)
+camera_option = st.selectbox("Select Camera", ["Front Camera", "Back Camera"])
+video_source = 0 if camera_option == "Front Camera" else 1
+
+# 📹 Start/Stop Recording Toggle
+recording = st.checkbox("🎥 Record Video")
+video_frames = []
+
+# Define Video Processing Class
+class YOLOTransformer(VideoTransformerBase):
+    def __init__(self):
+        self.model = model
+
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
 
-        # Run YOLO Model
-        results = model(img)
+        # Run YOLOv8 Object Detection
+        results = self.model(img)
 
-        # Draw Bounding Boxes
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 conf = float(box.conf[0])
                 cls = int(box.cls[0])
-                label = f"{model.names[cls]} {conf:.2f}"
+                label = f"{self.model.names[cls]} {conf:.2f}"
 
+                # Draw bounding boxes
                 if conf > 0.5:
                     cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                     cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        return img
+        # Save frames for recording
+        if recording:
+            video_frames.append(img)
 
-# Start the WebRTC Stream
-webrtc_streamer(key="object-detection", video_processor_factory=VideoProcessor)
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+# Start the webcam stream
+webrtc_ctx = webrtc_streamer(
+    key="object-detection",
+    video_transformer_factory=YOLOTransformer,
+    media_stream_constraints={"video": True, "audio": False},
+)
+
+# 🎬 Save recorded video
+if recording and video_frames:
+    if st.button("💾 Save Recording"):
+        output_filename = f"recording_{int(time.time())}.mp4"
+        output_path = os.path.join("recordings", output_filename)
+
+        # Create recordings directory if it doesn't exist
+        os.makedirs("recordings", exist_ok=True)
+
+        # Save video
+        height, width, _ = video_frames[0].shape
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_path, fourcc, 20, (width, height))
+
+        for frame in video_frames:
+            out.write(frame)
+
+        out.release()
+        st.success(f"🎥 Video saved: {output_path}")
 
 # 📌 Footer
-st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center; font-size:16px;">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
