@@ -88,54 +88,33 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Buttons Section (Aligned Below Each Other)
-st.markdown("<div class='button-container'>", unsafe_allow_html=True)
-start_btn = st.button("▶️ Start Detection", key="start", help="Begin recording video input")
-stop_btn = st.button("⏹️ Stop Detection", key="stop", help="Stop the ongoing recording")
-st.markdown("</div>", unsafe_allow_html=True)
+# 📷 Camera Input (Works on both Desktop & Mobile)
+uploaded_image = st.camera_input("Take a picture")
 
-# Video Recording and Object Detection Logic
-recording = False
-video_frames = []
-stframe = st.empty()  # Placeholder for video output
+# If an image is uploaded, process it with YOLO
+if uploaded_image is not None:
+    # Convert image to OpenCV format
+    file_bytes = np.asarray(bytearray(uploaded_image.read()), dtype=np.uint8)
+    frame = cv2.imdecode(file_bytes, 1)
 
-if start_btn:
-    cap = cv2.VideoCapture(0)
-    recording = True
-    st.success("🎥 Recording started...")
+    # Run YOLOv8 Model
+    results = model(frame)
 
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            st.warning("⚠️ Camera not found!")
-            break
+    # Draw Bounding Boxes
+    for result in results:
+        for box in result.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            conf = float(box.conf[0])
+            cls = int(box.cls[0])
+            label = f"{model.names[cls]} {conf:.2f}"
 
-        # Run YOLOv8 Model
-        results = model(frame)
+            if conf > 0.5:
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # Draw Bounding Boxes
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = float(box.conf[0])
-                cls = int(box.cls[0])
-                label = f"{model.names[cls]} {conf:.2f}"
-
-                if conf > 0.5:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-        if recording:
-            video_frames.append(frame)
-
-        # Convert to RGB for Streamlit Display
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame, channels="RGB", use_container_width=True)
-
-        if stop_btn:
-            cap.release()
-            recording = False
-            break
+    # Convert to RGB for Streamlit Display
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    st.image(frame, channels="RGB", use_container_width=True)
 
 # 📌 Footer
 st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
