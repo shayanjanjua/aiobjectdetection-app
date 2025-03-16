@@ -1,51 +1,40 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+from ultralytics import YOLO
 import cv2
 import numpy as np
-import tempfile
-import time
-from ultralytics import YOLO
 
 # Load YOLOv8 model
 model = YOLO("yolov8n.pt")
 
-# Streamlit UI
-st.set_page_config(page_title="Real-Time Object Detection", page_icon="📹", layout="wide")
+# Streamlit Page Config
+st.set_page_config(page_title="AI Object Detection", page_icon="📸", layout="wide")
 
-st.title("📹 Real-Time Object Detection with YOLOv8")
-st.sidebar.title("⚙️ Settings")
+# Custom CSS
+st.markdown(
+    """
+    <style>
+    .stApp { background: url("https://images.unsplash.com/photo-1557683316-973673baf926");
+        background-size: cover; background-position: center; }
+    .centered { text-align: center; font-size: 42px; font-weight: bold; color: #00D4FF; padding: 20px; }
+    .footer { position: fixed; bottom: 0; width: 100%; text-align: center; padding: 10px;
+        font-size: 16px; background: #222; color: #fff; border-top: 2px solid #444; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# Recording Variables
-recording = st.sidebar.checkbox("Enable Recording", False)
-output_video_path = None
+# UI Elements
+st.markdown("<h1 class='centered'>🚀 AI Object Detection</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; font-size:20px; color:#A9A9A9;'>An advanced AI-powered system for real-time object detection.</p>", unsafe_allow_html=True)
 
-# Initialize Webcam
-cap = cv2.VideoCapture(0)  # 0 for default webcam
+# Define Video Transformer Class for YOLO Processing
+class VideoProcessor(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
 
-if not cap.isOpened():
-    st.error("❌ Could not access the webcam.")
-else:
-    # Video Recording Setup
-    if recording:
-        st.sidebar.success("🎥 Recording in Progress...")
-        fourcc = cv2.VideoWriter_fourcc(*"XVID")
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".avi")
-        output_video_path = temp_file.name
-        fps = 20
-        frame_width = int(cap.get(3))
-        frame_height = int(cap.get(4))
-        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
-
-    # Start Streamlit Video Capture
-    stframe = st.empty()
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            st.error("❌ Failed to capture frame.")
-            break
-
-        # Run YOLOv8 Detection
-        results = model(frame)
+        # Run YOLO Model
+        results = model(img)
 
         # Draw Bounding Boxes
         for result in results:
@@ -56,24 +45,13 @@ else:
                 label = f"{model.names[cls]} {conf:.2f}"
 
                 if conf > 0.5:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # Save Video if Recording is Enabled
-        if recording:
-            out.write(frame)
+        return img
 
-        # Convert to RGB for Streamlit
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame, channels="RGB", use_container_width=True)
+# Start the WebRTC Stream
+webrtc_streamer(key="object-detection", video_processor_factory=VideoProcessor)
 
-        # Break loop if 'Stop Recording' is clicked
-        if not recording:
-            break
-
-    # Release Resources
-    cap.release()
-    if recording:
-        out.release()
-        st.sidebar.success(f"✅ Video saved: {output_video_path}")
-        st.sidebar.download_button(label="📥 Download Video", data=open(output_video_path, "rb"), file_name="recorded_video.avi", mime="video/x-msvideo")
+# 📌 Footer
+st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
