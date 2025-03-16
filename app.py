@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 from ultralytics import YOLO
 import cv2
 import numpy as np
@@ -17,12 +18,29 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .stApp { background: url("https://images.unsplash.com/photo-1557683316-973673baf926"); background-size: cover; background-position: center; }
-    .centered { text-align: center; font-size: 42px; font-weight: bold; color: #00D4FF; padding: 20px; }
-    .button-container { display: flex; flex-direction: column; align-items: center; margin-top: 30px; }
-    .styled-button { width: 220px; height: 55px; font-size: 18px; font-weight: bold; background-color: #00D4FF; color: #1E1E1E; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s ease-in-out; text-align: center; margin-bottom: 15px; }
-    .styled-button:hover { background-color: #008CBA; color: #FFFFFF; transform: scale(1.05); }
-    .footer { position: fixed; bottom: 0; width: 100%; text-align: center; padding: 10px; font-size: 16px; background: #222; color: #fff; border-top: 2px solid #444; }
+    .stApp {
+        background: url("https://images.unsplash.com/photo-1557683316-973673baf926");
+        background-size: cover;
+        background-position: center;
+    }
+    .centered {
+        text-align: center;
+        font-size: 42px;
+        font-weight: bold;
+        color: #00D4FF;
+        padding: 20px;
+    }
+    .footer {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        text-align: center;
+        padding: 10px;
+        font-size: 16px;
+        background: #222;
+        color: #fff;
+        border-top: 2px solid #444;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -35,32 +53,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Buttons Section
-st.markdown("<div class='button-container'>", unsafe_allow_html=True)
-start_btn = st.button("▶️ Start Detection", key="start", help="Detection Start")
-stop_btn = st.button("⏹️ Stop Detection", key="stop", help="Stop Detection")
-st.markdown("</div>", unsafe_allow_html=True)
-
-# Video Placeholder
-stframe = st.empty()
-
-# Open Camera if Start is Pressed
-if start_btn:
-    cap = cv2.VideoCapture(0)  # Open back camera
-    if not cap.isOpened():
-        st.error("⚠️ Could not open camera! Please check camera permissions.")
-        st.stop()
-
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            st.warning("⚠️ Camera feed not found!")
-            break
-
-        # Run YOLOv8 Model
-        results = model(frame)
-
-        # Draw Bounding Boxes
+# Video Processing Class
+class VideoTransformer(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        results = model(img)
+        
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -69,18 +67,13 @@ if start_btn:
                 label = f"{model.names[cls]} {conf:.2f}"
 
                 if conf > 0.5:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+        return img
 
-        # Convert to RGB for Streamlit Display
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame, channels="RGB", use_container_width=True)
-
-        # Check Stop Button
-        if stop_btn:
-            cap.release()
-            cv2.destroyAllWindows()
-            break
+# Streamlit WebRTC Video Stream
+webrtc_streamer(key="webcam", video_transformer_factory=VideoTransformer)
 
 # 📌 Footer
 st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
