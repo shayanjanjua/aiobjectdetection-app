@@ -88,54 +88,56 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# Camera Selection
+camera_option = st.radio("Select Camera:", ["Front Camera (0)", "Back Camera (1)"], horizontal=True)
+camera_index = 0 if camera_option == "Front Camera (0)" else 1
+
 # Buttons Section (Aligned Below Each Other)
 st.markdown("<div class='button-container'>", unsafe_allow_html=True)
 start_btn = st.button("▶️ Start Detection", key="start", help="Detection Start")
 stop_btn = st.button("⏹️ Stop Detection", key="stop", help="Stop Detection")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# Video Recording and Object Detection Logic
-recording = False
-video_frames = []
-stframe = st.empty()  # Placeholder for video output
+# Video Display Placeholder
+stframe = st.empty()  
 
 if start_btn:
-    cap = cv2.VideoCapture(0)
-    recording = True
-    st.success("🎥 Getting started...")
+    cap = cv2.VideoCapture(camera_index)  # Open selected camera
 
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            st.warning("⚠️ Camera not found!")
-            break
+    if not cap.isOpened():
+        st.error("⚠️ Camera not found! Try switching the camera.")
+    else:
+        st.success("🎥 Camera started!")
 
-        # Run YOLOv8 Model
-        results = model(frame)
+        while True:
+            success, frame = cap.read()
+            if not success:
+                st.error("⚠️ Unable to access camera!")
+                break
 
-        # Draw Bounding Boxes
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = float(box.conf[0])
-                cls = int(box.cls[0])
-                label = f"{model.names[cls]} {conf:.2f}"
+            # Run YOLOv8 Model
+            results = model(frame)
 
-                if conf > 0.5:
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            # Draw Bounding Boxes
+            for result in results:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    conf = float(box.conf[0])
+                    cls = int(box.cls[0])
+                    label = f"{model.names[cls]} {conf:.2f}"
 
-        if recording:
-            video_frames.append(frame)
+                    if conf > 0.5:
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # Convert to RGB for Streamlit Display
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame, channels="RGB", use_container_width=True)
+            # Convert to RGB for Streamlit Display
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(frame, channels="RGB", use_container_width=True)
 
-        if stop_btn:
-            cap.release()
-            recording = False
-            break
+            if stop_btn:
+                cap.release()
+                st.success("⏹️ Camera stopped!")
+                break
 
 # 📌 Footer
 st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
