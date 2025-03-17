@@ -66,6 +66,11 @@ if uploaded_video:
     os.remove(temp_video_path)
     os.remove(output_video_path)
 
-# 📌 Footer
-st.markdown('<p class="footer">Developed by Muhammad Shayan Janjua</p>', unsafe_allow_html=True)
-
+# Footer
+st.markdown(
+    """
+    <hr>
+    <p style="text-align: center; font-size: 16px;">Developed by <b>Muhammad Shayan Janjua</b></p>
+    """,
+    unsafe_allow_html=True
+)
